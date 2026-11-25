@@ -1,0 +1,22 @@
+title = "Configuracion Gitleaks - Practica AIDJR05"
+
+[extend]
+# Hereda todas las reglas oficiales de Gitleaks (AWS, GitHub PAT, Stripe, etc.)
+useDefault = true
+
+[[rules]]
+id = "aidjr-demo-token"
+description = "Token de practica AIDJR05 detectado (ejemplo educativo para Ejercicio 1)"
+regex = '''AIDJR_DEMO_TOKEN_[A-Za-z0-9_]{8,}'''
+keywords = ["AIDJR_DEMO_TOKEN_"]
+
+[allowlist]
+description = "Exclusiones estrictamente documentadas para archivos didacticos"
+paths = [
+  # Este archivo contiene un ejemplo intencionalmente inseguro y nunca se ejecuta en CI.
+  '''^ejemplos/inseguro\.yml$''',
+]
+regexes = [
+  # Placeholder de ejemplo citado literalmente en las instrucciones del Ejercicio 1.
+  '''AIDJR_DEMO_TOKEN_EJEMPLO_PLANTILLA''',
+]

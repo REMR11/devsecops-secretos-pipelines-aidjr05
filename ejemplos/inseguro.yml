@@ -1,0 +1,57 @@
+# ==============================================================================
+# ⚠️ ADVERTENCIA: WORKFLOW INTENCIONALMENTE INSEGURO — SOLO PARA ESTUDIO
+# ==============================================================================
+# Este archivo esta fuera de .github/workflows/ a proposito para que GitHub
+# Actions NO lo ejecute. Contiene 5 errores graves de seguridad en CI/CD.
+# Tu mision en practica/ejercicio-03-arreglar-workflow.md es identificarlos
+# y compararlos con .github/workflows/ci.yml.
+# ==============================================================================
+
+name: Pipeline Inseguro (NO USAR)
+
+on:
+  # ERROR 1 (Critico): pull_request_target se ejecuta con permisos de escritura
+  # y acceso a los secretos del repo base, incluso para PRs abiertos desde forks.
+  pull_request_target:
+  workflow_dispatch:
+
+# ERROR 2: No hay bloque `permissions:` explicito.
+# En repositorios donde el default sea read-write, cualquier step o dependencia
+# comprometida hereda un GITHUB_TOKEN con permisos de escritura sobre el codigo.
+
+jobs:
+  build-inseguro:
+    runs-on: ubuntu-latest
+    steps:
+      # ERROR 3: Tag mutable (@v4) en lugar de commit SHA completo, Y ADEMAS
+      # combinando pull_request_target con checkout del head del PR (codigo de un fork).
+      # Esto permite Poisoned Pipeline Execution (PPE): un atacante abre un PR
+      # modificando package.json o tests y roba los secretos al correr `npm test`.
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+
+      # ERROR 3b: Action de terceros fijada por tag mutable (@v45).
+      # Caso real (marzo 2025, CVE-2025-30066): atacantes sobrescribieron tags
+      # de tj-actions/changed-files <= 45.0.7 para volcar secretos a los logs.
+      - uses: tj-actions/changed-files@v45
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "24"
+
+      - name: Instalar y probar codigo no confiable
+        run: |
+          npm install
+          npm test
+
+      - name: Usar secretos de la peor forma posible
+        env:
+          # ERROR 4: Secreto hardcodeado en texto plano dentro del repositorio.
+          FAKE_HARDCODED_KEY: "FAKE_HARDCODED_SECRET_DEMO_123"
+        run: |
+          # ERROR 5: Imprimir o interpolar secretos directamente en `run:`.
+          # 1) Interpolar ${{ secrets.PROD_TOKEN }} permite inyeccion de comandos si cambia el valor.
+          # 2) Transformar el secreto (ej. base64 o rev) evade el enmascarado automatico de logs.
+          echo "Clave hardcodeada: $FAKE_HARDCODED_KEY"
+          echo "Token en base64: $(echo -n '${{ secrets.PROD_TOKEN }}' | base64)"

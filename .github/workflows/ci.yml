@@ -1,0 +1,88 @@
+name: CI Seguro (DevSecOps)
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+# Principio de minimo privilegio: por defecto, el GITHUB_TOKEN solo puede leer el repo.
+permissions:
+  contents: read
+
+jobs:
+  test-and-audit:
+    name: Pruebas y auditoria npm
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar repositorio (fijado por SHA)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configurar Node.js 24 (fijado por SHA)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Instalar dependencias exactas del lockfile
+        run: npm ci
+
+      - name: Auditar vulnerabilidades altas o criticas
+        run: npm audit --audit-level=high
+
+      - name: Ejecutar pruebas unitarias
+        run: npm test
+
+  secret-scan:
+    name: Escaneo de secretos (Gitleaks)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Descargar historial completo para escanear commits
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+
+      - name: Ejecutar Gitleaks (fijado por SHA)
+        uses: gitleaks/gitleaks-action@e0c47f4f8be36e29cdc102c57e68cb5cbf0e8d1e # v3.0.0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Desactivamos comentarios en PR para mantener permissions: contents: read estricto.
+          # Los hallazgos igual fallan el job y aparecen en el Job Summary y el artefacto SARIF.
+          GITLEAKS_ENABLE_COMMENTS: "false"
+
+  deploy-production-demo:
+    name: Demo de entorno production con secretos seguros
+    needs: [test-and-audit, secret-scan]
+    # Nunca ejecutar despliegues con secretos en pull_request (especialmente desde forks).
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    # Documentacion: en GitHub -> Settings -> Environments -> production puedes activar
+    # "Required reviewers" para exigir aprobacion humana antes de que corra este job.
+    environment: production
+    steps:
+      - name: Descargar repositorio (fijado por SHA)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Configurar Node.js 24 (fijado por SHA)
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "24"
+          cache: "npm"
+
+      - name: Instalar dependencias exactas del lockfile
+        run: npm ci
+
+      - name: Usar secreto por variable de entorno (sin imprimirlo)
+        env:
+          # Buena practica: pasar secrets via env:, nunca interpolar ${{ secrets.* }} directo en run:
+          API_KEY: ${{ secrets.DEMO_API_KEY }}
+          APP_ENV: production
+        run: |
+          if [ -z "$API_KEY" ]; then
+            echo "DEMO_API_KEY aun no esta configurado en el repo o environment 'production'."
+            echo "Sigue practica/ejercicio-02-secrets-env.md para configurarlo de forma segura."
+          else
+            echo "DEMO_API_KEY detectado de forma segura (longitud: ${#API_KEY} caracteres)."
+          fi
+          npm start

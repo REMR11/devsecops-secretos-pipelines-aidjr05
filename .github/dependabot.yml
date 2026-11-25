@@ -1,0 +1,33 @@
+version: 2
+updates:
+  # 1. Dependencias de Node.js (package.json y package-lock.json)
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/El_Salvador"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "npm"
+    # Agrupamos actualizaciones minor y patch para reducir el ruido de PRs semanales.
+    groups:
+      npm-minor-and-patch:
+        update-types:
+          - "minor"
+          - "patch"
+
+  # 2. GitHub Actions (mantiene actualizados los SHAs fijados en .github/workflows/)
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "08:00"
+      timezone: "America/El_Salvador"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "github-actions"

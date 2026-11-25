@@ -1,0 +1,45 @@
+# ==============================================================================
+# EJEMPLO DOCUMENTADO: Autenticacion sin claves estaticas usando OIDC (AWS)
+# ==============================================================================
+# Este archivo es una referencia educativa (no se ejecuta automaticamente porque
+# esta fuera de .github/workflows/ y requiere una cuenta AWS con rol IAM OIDC).
+#
+# Por que OIDC es mejor que guardar AWS_ACCESS_KEY_ID y AWS_SECRET_ACCESS_KEY?
+# - No existen credenciales de larga duracion guardadas en GitHub Secrets.
+# - GitHub firma un JWT temporal (valido solo durante ese job).
+# - AWS IAM verifica el emisor (token.actions.githubusercontent.com) y las
+#   condiciones del campo `sub`, por ejemplo:
+#     "repo:TU_USUARIO/devsecops-secretos-pipelines-aidjr05:environment:production"
+# - Aunque alguien robe una variable del entorno despues de que el job termine,
+#   el token temporal expira en minutos.
+# ==============================================================================
+
+name: Deploy a AWS con OIDC (Ejemplo)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  # Necesario para que GitHub Actions emita el token OIDC del job.
+  id-token: write
+  contents: read
+
+jobs:
+  deploy-oidc:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Descargar repositorio (fijado por SHA)
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Obtener credenciales temporales de AWS via OIDC (fijado por SHA)
+        uses: aws-actions/configure-aws-credentials@45666896f5d8e0f10ae255413f3a4cdd03bdc8f5 # v6.3.1
+        with:
+          # ARN del rol IAM configurado en AWS con Trust Policy hacia tu repo y environment.
+          role-to-assume: arn:aws:iam::123456789012:role/github-actions-aidjr05-deploy
+          aws-region: us-east-1
+
+      - name: Verificar identidad temporal sin secretos estaticos
+        run: |
+          echo "Aqui correrias aws s3 sync o tu deploy con credenciales efimeras."
+          # aws sts get-caller-identity
